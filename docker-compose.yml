@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: shortener_user
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: shortener_db
+
