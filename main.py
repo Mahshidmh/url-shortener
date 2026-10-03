@@ -5,12 +5,12 @@ import uuid
 from fastapi.responses import RedirectResponse
 from database import get_session , URL
 from sqlmodel import Session , select
+from sqlalchemy import text
 from datetime import datetime , UTC
 from fastapi.security import APIKeyHeader
 
 app = FastAPI()
-memory = {}
-RESERVED_WORDS = {"urls", "docs", "openapi.json","redoc"}
+RESERVED_WORDS = {"health","urls", "docs", "openapi.json","redoc"}
 request_log = {}
 api_key_header = APIKeyHeader(name="X-API-Key")
 
@@ -68,6 +68,13 @@ def delete_url(short_code: str, session: Session = Depends(get_session), _: bool
     session.delete(db_url)
     session.commit()
 
+@app.get("/health")
+def health_check(session: Session = Depends(get_session)):
+    try:
+        session.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"status": "ok"}
 
 @app.get("/{short_code}")
 def redirect_to_url(short_code : str, session: Session = Depends(get_session)):
@@ -82,10 +89,6 @@ def redirect_to_url(short_code : str, session: Session = Depends(get_session)):
     session.commit()
     return RedirectResponse(url=result.original_url)
 
-@app.get("/")
-def read_root(session: Session = Depends(get_session)):
-    print(session)
-    return {"message":"session injected"}
 
 @app.get("/urls/{short_code}/stats")
 def get_url_stats(short_code: str, session: Session = Depends(get_session)):
