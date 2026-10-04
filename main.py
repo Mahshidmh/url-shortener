@@ -2,7 +2,7 @@ from config import settings
 from pydantic import BaseModel ,HttpUrl
 from fastapi import FastAPI , HTTPException , Depends , Request
 import uuid
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse , JSONResponse
 from database import get_session , URL
 from sqlmodel import Session , select
 from sqlalchemy import text
@@ -16,6 +16,11 @@ setup_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 RESERVED_WORDS = {"health","urls", "docs", "openapi.json","redoc"}
 request_log = {}
 api_key_header = APIKeyHeader(name="X-API-Key")

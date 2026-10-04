@@ -1,5 +1,38 @@
 from fastapi.testclient import TestClient
+from main import app
+from database import get_session
+from config import settings
 
+def test_unhandled_exception_returns_500():
+    def broken_session():
+        raise RuntimeError("boom")
+
+    app.dependency_overrides[get_session] = broken_session
+    try:
+        with TestClient(app, raise_server_exceptions=500) as test_client:
+            response = test_client.get("/urls")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "500"
+    assert "boom" not in response.text
+
+
+def test_unhandled_exception_returns_500():
+    def broken_session():
+        raise RuntimeError("boom")
+
+    app.dependency_overrides[get_session] = broken_session
+    try:
+        with TestClient(app, raise_server_exceptions=False) as test_client:
+            response = test_client.get("/urls")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Internal server error"
+    assert "boom" not in response.text
 
 def test_create_url(client):
     response = client.post("/urls", json={"original_url": "https://example.com"})
