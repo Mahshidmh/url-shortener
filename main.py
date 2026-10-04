@@ -8,6 +8,12 @@ from sqlmodel import Session , select
 from sqlalchemy import text
 from datetime import datetime , UTC
 from fastapi.security import APIKeyHeader
+import logging
+from config import settings
+from logging_config import setup_logging
+
+setup_logging(settings.log_level)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 RESERVED_WORDS = {"health","urls", "docs", "openapi.json","redoc"}
@@ -16,6 +22,7 @@ api_key_header = APIKeyHeader(name="X-API-Key")
 
 def verify_api_key(key: str = Depends(api_key_header)):
     if key != settings.api_key:
+        logger.warning("Invalid API key attempt")
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 class URLCreate(BaseModel):
@@ -31,12 +38,14 @@ def create_url(url: URLCreate ,request : Request ,session : Session = Depends(ge
     ip = request.client.host
 
     if is_rate_limited(ip):
+        logger.warning("Rate limit exceeded for %s", ip)
         raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
 
     code = generate_unique_code(session)
     db_url = URL(original_url=str(url.original_url), short_code=code, expires_at=url.expires_at)
     session.add(db_url)
     session.commit()
+    logger.info("URL created %s", code)
     session.refresh(db_url)
     return {"short_code": code, "original_url": url.original_url, "expires_at": url.expires_at}
 
@@ -82,7 +91,9 @@ def redirect_to_url(short_code : str, session: Session = Depends(get_session)):
     result = session.exec(statement).first()
     if result is None:
         raise HTTPException(status_code=404, detail="Short code not found")
+
     if result.expires_at is not None and result.expires_at < datetime.now(UTC):
+        logger.info("Expired link requested: %s", short_code)
         raise HTTPException(status_code = 410, detail="Link is expired or not found!")
     result.click_count += 1
     session.add(result)
