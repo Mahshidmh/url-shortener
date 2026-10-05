@@ -15,7 +15,12 @@ from logging_config import setup_logging
 setup_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(
+    title="URL Shortener API",
+    description="URL shortener API with API-key auth, rate limiting, click analytics and link expiry.",
+    version="1.0.0",
+)
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
@@ -37,8 +42,15 @@ class URLCreate(BaseModel):
 class URLUpdate(BaseModel):
     original_url: HttpUrl
 
-
-@app.post("/urls", status_code = 201)
+@app.post(
+    "/urls",
+    status_code=201,
+    tags=["urls"],
+    responses={
+        401: {"description": "Missing or invalid API key"},
+        429: {"description": "Rate limit exceeded. Try again later."},
+    },
+)
 def create_url(url: URLCreate ,request : Request ,session : Session = Depends(get_session), _: bool = Depends(verify_api_key)):
     ip = request.client.host
 
@@ -55,14 +67,14 @@ def create_url(url: URLCreate ,request : Request ,session : Session = Depends(ge
     return {"short_code": code, "original_url": url.original_url, "expires_at": url.expires_at}
 
 
-@app.get("/urls")
+@app.get("/urls", tags=["urls"])
 def list_urls(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     statement = select(URL).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
 
-@app.patch("/urls/{short_code}")
+@app.patch("/urls/{short_code}" , tags=["urls"])
 def update_url(short_code: str, url:URLUpdate, session: Session = Depends(get_session), _: bool = Depends(verify_api_key)):
     db_url = session.exec(select(URL).where(URL.short_code == short_code)).first()
     if db_url is None:
@@ -74,7 +86,7 @@ def update_url(short_code: str, url:URLUpdate, session: Session = Depends(get_se
     return db_url
 
 
-@app.delete("/urls/{short_code}", status_code=204)
+@app.delete("/urls/{short_code}", status_code=204, tags=["urls"])
 def delete_url(short_code: str, session: Session = Depends(get_session), _: bool = Depends(verify_api_key)):
     db_url = session.exec(select(URL).where(URL.short_code == short_code)).first()
     if db_url is None:
@@ -82,7 +94,7 @@ def delete_url(short_code: str, session: Session = Depends(get_session), _: bool
     session.delete(db_url)
     session.commit()
 
-@app.get("/health")
+@app.get("/health", tags=["ops"])
 def health_check(session: Session = Depends(get_session)):
     try:
         session.execute(text("SELECT 1"))
@@ -90,7 +102,14 @@ def health_check(session: Session = Depends(get_session)):
         raise HTTPException(status_code=503, detail="Database unavailable")
     return {"status": "ok"}
 
-@app.get("/{short_code}")
+@app.get(
+    "/{short_code}",
+    tags=["redirect"],
+    responses={
+        404: {"description": "Short code not found"},
+        410: {"description": "Link has expired"},
+    },
+)
 def redirect_to_url(short_code : str, session: Session = Depends(get_session)):
     statement = select(URL).where(URL.short_code == short_code)
     result = session.exec(statement).first()
@@ -106,7 +125,7 @@ def redirect_to_url(short_code : str, session: Session = Depends(get_session)):
     return RedirectResponse(url=result.original_url)
 
 
-@app.get("/urls/{short_code}/stats")
+@app.get("/urls/{short_code}/stats", tags=["analytics"])
 def get_url_stats(short_code: str, session: Session = Depends(get_session)):
     statement = select(URL).where(URL.short_code == short_code)
     result = session.exec(statement).first()
