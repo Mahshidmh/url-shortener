@@ -32,3 +32,6 @@ jobs:
 
       - name: Create test database
         run: docker compose exec -T db psql -U shortener_user -d shortener_db -c "CREATE DATABASE shortener_test_db;"
+
+      - name: Migrate test database
+        run: docker compose exec -T -e DATABASE_URL=postgresql://shortener_user:mysecretpassword@db:5432/shortener_test_db app alembic upgrade head
