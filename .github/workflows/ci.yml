@@ -22,3 +22,13 @@ jobs:
 
       - name: Show running containers
         run: docker compose ps
+
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose exec -T db pg_isready -U shortener_user && break
+            sleep 2
+          done
+
+      - name: Create test database
+        run: docker compose exec -T db psql -U shortener_user -d shortener_db -c "CREATE DATABASE shortener_test_db;"
