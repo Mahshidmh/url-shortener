@@ -35,3 +35,9 @@ jobs:
 
       - name: Migrate test database
         run: docker compose exec -T -e DATABASE_URL=postgresql://shortener_user:mysecretpassword@db:5432/shortener_test_db app alembic upgrade head
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs app --tail 60
