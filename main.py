@@ -99,6 +99,7 @@ def health_check(session: Session = Depends(get_session)):
     try:
         session.execute(text("SELECT 1"))
     except Exception:
+        logger.exception("Health check failed: database unreachable")
         raise HTTPException(status_code=503, detail="Database unavailable")
     return {"status": "ok"}
 
