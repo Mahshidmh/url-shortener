@@ -16,6 +16,7 @@ jobs:
         run: |
           echo "DATABASE_URL=postgresql://shortener_user:mysecretpassword@db:5432/shortener_db" > .env
           echo "API_KEY=ci-test-key" >> .env
+          echo "TEST_DATABASE_URL=postgresql://shortener_user:mysecretpassword@db:5432/shortener_test_db" >> .env
 
       - name: Start the stack
         run: docker compose up -d --build
